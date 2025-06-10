@@ -28,6 +28,11 @@ public:
     virtual void setOptimizer(std::shared_ptr<Optimizer> opt) {}
     virtual void setOptimizerType(const std::string& type, double learning_rate = 0.01) {}
     
+    // Model persistence (optional, layers without parameters don't need to implement)
+    virtual std::vector<Tensor> getParameters() const { return {}; }
+    virtual void setParameters(const std::vector<Tensor>& params) {}
+    virtual std::string getLayerType() const = 0;
+    
     // Utility methods
     virtual bool hasWeights() const { return false; }
     virtual bool hasBiases() const { return false; }

@@ -43,9 +43,19 @@ public:
     const double& operator[](const std::vector<int>& indices) const;
     double& at(int index);
     const double& at(int index) const;
-
+    
+    // Direct data access for performance (use with caution)
+    double* data_ptr() { return data.data(); }
+    const double* data_ptr() const { return data.data(); }
+    
+    // Fast index calculation without bounds checking (for performance)
+    int fast_index(const std::vector<int>& indices) const;
+    int fast_index_3d(int c, int h, int w) const; // Optimized for 3D access
+    int fast_index_4d(int f, int c, int h, int w) const; // Optimized for 4D access
+    
     // Matrix operations
     Tensor dot(const Tensor& other) const;
+    Tensor matmul(const Tensor& other) const { return dot(other); }
     Tensor transpose() const;
     Tensor sum(int axis = -1) const;
     

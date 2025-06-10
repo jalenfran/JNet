@@ -12,6 +12,8 @@
 
 #include <vector>
 #include <memory>
+#include <string>
+#include <fstream>
 #include "tensor.h"
 #include "../layers/layer.h"
 #include "../layers/dense.h"
@@ -21,13 +23,16 @@
 
 namespace JNet {
 
+// Forward declarations
+class SGD;
+class Adam;
+
 class Network {
 public:
     Network();
     ~Network();
 
     // Polymorphic layer management
-    void addLayer(std::unique_ptr<Layer> layer);
     void addLayer(Layer* layer);  // Takes ownership and wraps in unique_ptr
     
     void setOptimizer(std::shared_ptr<Optimizer> optimizer);
@@ -38,13 +43,37 @@ public:
     // Epoch-based training methods
     void trainEpochs(const std::vector<Tensor>& inputs, const std::vector<Tensor>& targets, 
                      int epochs, bool verbose = true);
+    
+    // Enhanced training with progress bar and detailed statistics
+    struct TrainingConfig {
+        bool verbose;
+        bool show_progress_bar;
+        bool show_accuracy;
+        bool show_learning_rate;
+        int print_every;  // Print stats every N epochs
+        int progress_bar_width;
+        
+        TrainingConfig() : verbose(true), show_progress_bar(true), show_accuracy(false), 
+                          show_learning_rate(false), print_every(1), progress_bar_width(50) {}
+        TrainingConfig(bool v) : verbose(v), show_progress_bar(true), show_accuracy(false), 
+                                show_learning_rate(false), print_every(1), progress_bar_width(50) {}
+    };
+    
+    void trainEpochsAdvanced(const std::vector<Tensor>& inputs, const std::vector<Tensor>& targets, 
+                            int epochs, const TrainingConfig& config = TrainingConfig());
+    
     void trainBatch(const std::vector<Tensor>& inputs, const std::vector<Tensor>& targets);
     double evaluateAccuracy(const std::vector<Tensor>& inputs, const std::vector<Tensor>& targets);
     
     Tensor predict(const Tensor& input);
+    
+    // Model persistence
+    void saveModel(const std::string& filename);
+    void loadModel(const std::string& filename);
 
 private:
     std::vector<std::unique_ptr<Layer>> layers;
+    std::shared_ptr<Optimizer> optimizer;
     Tensor last_output;
     
     double calculateLoss(const Tensor& predicted, const Tensor& target);

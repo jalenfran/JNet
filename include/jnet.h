@@ -12,6 +12,7 @@
 #include "../src/layers/dense.h"
 #include "../src/layers/conv2d.h"
 #include "../src/layers/flatten.h"
+#include "../src/layers/pooling.h"
 #include "../src/layers/activation.h"
 #include "../src/optimizers/optimizer.h"
 #include "../src/optimizers/sgd.h"

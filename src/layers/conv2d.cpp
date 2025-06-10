@@ -1,8 +1,11 @@
 #include "conv2d.h"
+#include "activation.h"
+#include "../core/threadpool.h"
 #include <random>
 #include <cmath>
 #include <stdexcept>
 #include <iostream>
+#include <thread>
 #include "../optimizers/sgd.h"
 
 namespace JNet {
@@ -77,10 +80,16 @@ Tensor Conv2D::apply_padding(const Tensor& input) const {
     std::vector<int> padded_shape = {channels, height + 2 * padding, width + 2 * padding};
     Tensor padded = Tensor::zeros(padded_shape);
     
+    // Use fast indexing for efficient copying
+    const double* input_data = input.data_ptr();
+    double* padded_data = padded.data_ptr();
+    
     for (int c = 0; c < channels; ++c) {
         for (int h = 0; h < height; ++h) {
             for (int w = 0; w < width; ++w) {
-                padded[{c, h + padding, w + padding}] = input[{c, h, w}];
+                int input_idx = input.fast_index_3d(c, h, w);
+                int padded_idx = padded.fast_index_3d(c, h + padding, w + padding);
+                padded_data[padded_idx] = input_data[input_idx];
             }
         }
     }
@@ -119,52 +128,84 @@ Tensor Conv2D::forward(const Tensor& input) {
     // Create output tensor
     Tensor output = Tensor::zeros(output_shape);
     
-    // Perform convolution
-    for (int f = 0; f < num_filters; ++f) {
-        for (int oh = 0; oh < output_height; ++oh) {
-            for (int ow = 0; ow < output_width; ++ow) {
-                double sum = 0.0;
-                
-                // Convolve with kernel
-                for (int c = 0; c < input_channels; ++c) {
-                    for (int kh = 0; kh < kernel_size; ++kh) {
-                        for (int kw = 0; kw < kernel_size; ++kw) {
-                            int ih = oh * stride + kh;
-                            int iw = ow * stride + kw;
-                            
-                            if (ih < input_height && iw < input_width) {
-                                sum += padded_input[{c, ih, iw}] * weights[{f, c, kh, kw}];
+    // Perform convolution with multithreading
+    size_t total_output_elements = static_cast<size_t>(num_filters) * output_height * output_width;
+    size_t thread_threshold = 50; // Threshold for using multithreading
+    
+    if (total_output_elements > thread_threshold) {
+        // Parallelize over output filters
+        size_t num_threads = std::min(static_cast<size_t>(num_filters), 
+                                     static_cast<size_t>(std::thread::hardware_concurrency()));
+        
+        // Get direct data pointers for fast access
+        const double* input_data = padded_input.data_ptr();
+        const double* weight_data = weights.data_ptr();
+        double* output_data = output.data_ptr();
+        
+        parallel_for(0, num_filters, num_threads, [&](size_t f) {
+            for (int oh = 0; oh < output_height; ++oh) {
+                for (int ow = 0; ow < output_width; ++ow) {
+                    double sum = 0.0;
+                    
+                    // Convolve with kernel using fast index calculation
+                    for (int c = 0; c < input_channels; ++c) {
+                        for (int kh = 0; kh < kernel_size; ++kh) {
+                            for (int kw = 0; kw < kernel_size; ++kw) {
+                                int ih = oh * stride + kh;
+                                int iw = ow * stride + kw;
+                                
+                                if (ih < input_height && iw < input_width) {
+                                    int input_idx = padded_input.fast_index_3d(c, ih, iw);
+                                    int weight_idx = weights.fast_index_4d(static_cast<int>(f), c, kh, kw);
+                                    sum += input_data[input_idx] * weight_data[weight_idx];
+                                }
                             }
                         }
                     }
+                    
+                    // Add bias and store using fast index
+                    int output_idx = output.fast_index_3d(static_cast<int>(f), oh, ow);
+                    output_data[output_idx] = sum + biases.at(static_cast<int>(f));
                 }
-                
-                // Add bias and store
-                output[{f, oh, ow}] = sum + biases.at(f);
+            }
+        });
+    } else {
+        // Use single-threaded approach for smaller convolutions with fast access
+        const double* input_data = padded_input.data_ptr();
+        const double* weight_data = weights.data_ptr();
+        double* output_data = output.data_ptr();
+        
+        for (int f = 0; f < num_filters; ++f) {
+            for (int oh = 0; oh < output_height; ++oh) {
+                for (int ow = 0; ow < output_width; ++ow) {
+                    double sum = 0.0;
+                    
+                    // Convolve with kernel using fast index calculation
+                    for (int c = 0; c < input_channels; ++c) {
+                        for (int kh = 0; kh < kernel_size; ++kh) {
+                            for (int kw = 0; kw < kernel_size; ++kw) {
+                                int ih = oh * stride + kh;
+                                int iw = ow * stride + kw;
+                                
+                                if (ih < input_height && iw < input_width) {
+                                    int input_idx = padded_input.fast_index_3d(c, ih, iw);
+                                    int weight_idx = weights.fast_index_4d(f, c, kh, kw);
+                                    sum += input_data[input_idx] * weight_data[weight_idx];
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Add bias and store using fast index
+                    int output_idx = output.fast_index_3d(f, oh, ow);
+                    output_data[output_idx] = sum + biases.at(f);
+                }
             }
         }
     }
     
-    // Apply activation
-    for (int i = 0; i < output.size(); ++i) {
-        switch (activation_func) {
-            case Activation::ReLU:
-                output.at(i) = std::max(0.0, output.at(i));
-                break;
-            case Activation::Sigmoid:
-                output.at(i) = 1.0 / (1.0 + std::exp(-output.at(i)));
-                break;
-            case Activation::Tanh:
-                output.at(i) = std::tanh(output.at(i));
-                break;
-            case Activation::Linear:
-                // Do nothing
-                break;
-            case Activation::Softmax:
-                // Softmax will be applied after the loop
-                break;
-        }
-    }
+    // Apply activation using centralized activation functions
+    output = ActivationFunction::apply(output, activation_func);
     
     last_output = output;
     return output;
@@ -178,30 +219,12 @@ Tensor Conv2D::backward(const Tensor& output_gradient) {
     std::vector<int> input_shape = last_input.shape();
     std::vector<int> output_shape = last_output.shape();
     
-    // Apply activation derivative
-    Tensor activation_grad = output_gradient;
-    for (int i = 0; i < activation_grad.size(); ++i) {
-        switch (activation_func) {
-            case Activation::ReLU:
-                activation_grad.at(i) = (last_output.at(i) > 0) ? activation_grad.at(i) : 0.0;
-                break;
-            case Activation::Sigmoid: {
-                double sigmoid_out = last_output.at(i);
-                activation_grad.at(i) *= sigmoid_out * (1.0 - sigmoid_out);
-                break;
-            }
-            case Activation::Tanh: {
-                double tanh_out = last_output.at(i);
-                activation_grad.at(i) *= (1.0 - tanh_out * tanh_out);
-                break;
-            }
-            case Activation::Linear:
-                // Do nothing
-                break;
-            case Activation::Softmax:
-                // Softmax derivative is more complex, handle separately
-                break;
-        }
+    // Apply activation derivative using centralized activation functions
+    Tensor activation_grad = ActivationFunction::derivative(last_output, activation_func);
+    
+    // Element-wise multiply with output gradient
+    for (int i = 0; i < output_gradient.size(); ++i) {
+        activation_grad.at(i) *= output_gradient.at(i);
     }
     
     // Calculate gradients
@@ -220,11 +243,18 @@ Tensor Conv2D::backward(const Tensor& output_gradient) {
     int output_height = output_shape[1];
     int output_width = output_shape[2];
     
-    // Calculate gradients
+    // Calculate gradients using fast indexing
+    const double* activation_grad_data = activation_grad.data_ptr();
+    const double* padded_input_data = padded_input.data_ptr();
+    const double* weights_data = weights.data_ptr();
+    double* weight_grad_data = weight_gradients.data_ptr();
+    double* padded_input_grad_data = padded_input_gradients.data_ptr();
+    
     for (int f = 0; f < num_filters; ++f) {
         for (int oh = 0; oh < output_height; ++oh) {
             for (int ow = 0; ow < output_width; ++ow) {
-                double grad = activation_grad[{f, oh, ow}];
+                int grad_idx = activation_grad.fast_index_3d(f, oh, ow);
+                double grad = activation_grad_data[grad_idx];
                 
                 // Bias gradient
                 bias_gradients.at(f) += grad;
@@ -238,10 +268,14 @@ Tensor Conv2D::backward(const Tensor& output_gradient) {
                             
                             if (ih < padded_shape[1] && iw < padded_shape[2]) {
                                 // Weight gradient
-                                weight_gradients[{f, c, kh, kw}] += grad * padded_input[{c, ih, iw}];
+                                int weight_idx = weight_gradients.fast_index_4d(f, c, kh, kw);
+                                int input_idx = padded_input.fast_index_3d(c, ih, iw);
+                                weight_grad_data[weight_idx] += grad * padded_input_data[input_idx];
                                 
                                 // Input gradient
-                                padded_input_gradients[{c, ih, iw}] += grad * weights[{f, c, kh, kw}];
+                                int weights_idx = weights.fast_index_4d(f, c, kh, kw);
+                                int padded_grad_idx = padded_input_gradients.fast_index_3d(c, ih, iw);
+                                padded_input_grad_data[padded_grad_idx] += grad * weights_data[weights_idx];
                             }
                         }
                     }
@@ -250,12 +284,17 @@ Tensor Conv2D::backward(const Tensor& output_gradient) {
         }
     }
     
-    // Remove padding from input gradients
+    // Remove padding from input gradients using fast indexing
     if (padding > 0) {
+        const double* padded_grad_data = padded_input_gradients.data_ptr();
+        double* input_grad_data = input_gradients.data_ptr();
+        
         for (int c = 0; c < input_channels; ++c) {
             for (int h = 0; h < input_height; ++h) {
                 for (int w = 0; w < input_width; ++w) {
-                    input_gradients[{c, h, w}] = padded_input_gradients[{c, h + padding, w + padding}];
+                    int padded_idx = padded_input_gradients.fast_index_3d(c, h + padding, w + padding);
+                    int input_idx = input_gradients.fast_index_3d(c, h, w);
+                    input_grad_data[input_idx] = padded_grad_data[padded_idx];
                 }
             }
         }
@@ -310,6 +349,23 @@ Tensor Conv2D::get_weights() const {
 
 Tensor Conv2D::get_biases() const {
     return biases;
+}
+
+std::vector<Tensor> Conv2D::getParameters() const {
+    return {weights, biases};
+}
+
+void Conv2D::setParameters(const std::vector<Tensor>& params) {
+    if (params.size() != 2) {
+        throw std::invalid_argument("Conv2D layer expects 2 parameters: weights and biases");
+    }
+    weights = params[0];
+    biases = params[1];
+    weights_initialized = true;
+}
+
+std::string Conv2D::getLayerType() const {
+    return "Conv2D";
 }
 
 }

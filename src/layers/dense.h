@@ -34,6 +34,11 @@ public:
     void setOptimizer(std::shared_ptr<Optimizer> opt) override;
     void setOptimizerType(const std::string& type, double learning_rate = 0.01) override;
     
+    // Model persistence
+    std::vector<Tensor> getParameters() const override;
+    void setParameters(const std::vector<Tensor>& params) override;
+    std::string getLayerType() const override;
+    
     bool hasWeights() const override { return true; }
     bool hasBiases() const override { return true; }
 

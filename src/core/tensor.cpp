@@ -1,9 +1,11 @@
 #include "tensor.h"
+#include "threadpool.h"
 #include <iostream>
 #include <vector>
 #include <stdexcept>
 #include <random>
 #include <iomanip>
+#include <thread>
 
 namespace JNet {
 
@@ -155,15 +157,40 @@ Tensor Tensor::dot(const Tensor& other) const {
     std::vector<int> result_dims = {dimensions[0], other.dimensions[1]};
     Tensor result(result_dims);
     
-    for (int i = 0; i < dimensions[0]; ++i) {
-        for (int j = 0; j < other.dimensions[1]; ++j) {
-            double sum = 0.0;
-            for (int k = 0; k < dimensions[1]; ++k) {
-                sum += data[i * dimensions[1] + k] * other.data[k * other.dimensions[1] + j];
+    int rows = dimensions[0];
+    int cols = other.dimensions[1];
+    int inner = dimensions[1];
+    
+    // Use multithreading for larger matrices
+    size_t total_operations = static_cast<size_t>(rows) * cols;
+    size_t thread_threshold = 100; // Threshold to decide if multithreading is worth it
+    
+    if (total_operations > thread_threshold) {
+        size_t num_threads = std::min(static_cast<size_t>(rows), 
+                                     static_cast<size_t>(std::thread::hardware_concurrency()));
+        
+        parallel_for(0, rows, num_threads, [&](size_t i) {
+            for (int j = 0; j < cols; ++j) {
+                double sum = 0.0;
+                for (int k = 0; k < inner; ++k) {
+                    sum += data[i * inner + k] * other.data[k * cols + j];
+                }
+                result.data[i * cols + j] = sum;
             }
-            result.data[i * other.dimensions[1] + j] = sum;
+        });
+    } else {
+        // Use single-threaded approach for smaller matrices
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                double sum = 0.0;
+                for (int k = 0; k < inner; ++k) {
+                    sum += data[i * inner + k] * other.data[k * cols + j];
+                }
+                result.data[i * cols + j] = sum;
+            }
         }
     }
+    
     return result;
 }
 
@@ -321,6 +348,29 @@ int Tensor::calculateIndex(const std::vector<int>& indices) const {
         stride *= dimensions[i];
     }
     return index;
+}
+
+// Fast index calculation methods for performance
+int Tensor::fast_index(const std::vector<int>& indices) const {
+    int index = 0;
+    int stride = 1;
+    for (int i = dimensions.size() - 1; i >= 0; --i) {
+        index += indices[i] * stride;
+        stride *= dimensions[i];
+    }
+    return index;
+}
+
+int Tensor::fast_index_3d(int c, int h, int w) const {
+    // For shape [channels, height, width]
+    return c * dimensions[1] * dimensions[2] + h * dimensions[2] + w;
+}
+
+int Tensor::fast_index_4d(int f, int c, int h, int w) const {
+    // For shape [filters, channels, height, width]
+    return f * dimensions[1] * dimensions[2] * dimensions[3] + 
+           c * dimensions[2] * dimensions[3] + 
+           h * dimensions[3] + w;
 }
 
 }

@@ -216,13 +216,11 @@ JNet features a sophisticated optimizer architecture:
 
 ## Future Enhancements
 
-- [ ] **Pooling layers** (MaxPool, AvgPool) for CNNs
 - [ ] **Advanced CNN architectures** (stride > 1, dilated convolutions)
 - [ ] LSTM/RNN layers for sequence data
 - [ ] GPU support with CUDA
 - [ ] More optimizers (RMSprop, AdaGrad)
 - [ ] Regularization techniques (Dropout, BatchNorm)
-- [ ] Model serialization/loading
 - [ ] Advanced loss functions (CrossEntropy, etc.)
 - [ ] Batch processing optimization
 

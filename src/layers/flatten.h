@@ -22,6 +22,9 @@ public:
     Tensor forward(const Tensor& input) override;
     Tensor backward(const Tensor& output_gradient) override;
     
+    // Model persistence (no parameters for flatten layer)
+    std::string getLayerType() const override { return "Flatten"; }
+    
     bool hasWeights() const override { return false; }
     bool hasBiases() const override { return false; }
 

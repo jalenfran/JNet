@@ -137,7 +137,7 @@ Tensor ActivationFunction::derivative(const Tensor& input, Activation activation
         case Activation::Tanh:
             return tanh_derivative(input);
         case Activation::Softmax:
-            return softmax(input);
+            return softmax_derivative(input);
         case Activation::Linear:
             return Tensor::ones(input.shape());
         default:

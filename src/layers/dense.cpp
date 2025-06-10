@@ -57,10 +57,15 @@ Tensor Dense::forward(const Tensor& input) {
     // Linear transformation: input * weights.T + biases
     Tensor linear_output = input.dot(weights.transpose());
     
-    // Add biases (broadcast)
-    for (int i = 0; i < linear_output.shape()[0]; ++i) {
-        for (int j = 0; j < linear_output.shape()[1]; ++j) {
-            linear_output.at(i * linear_output.shape()[1] + j) += biases.at(j);
+    // Add biases (broadcast) using fast access
+    double* linear_data = linear_output.data_ptr();
+    const double* bias_data = biases.data_ptr();
+    int batch_size = linear_output.shape()[0];
+    int output_size = linear_output.shape()[1];
+    
+    for (int i = 0; i < batch_size; ++i) {
+        for (int j = 0; j < output_size; ++j) {
+            linear_data[i * output_size + j] += bias_data[j];
         }
     }
     
@@ -157,6 +162,23 @@ void Dense::setOptimizerType(const std::string& type, double learning_rate) {
     } else {
         throw std::invalid_argument("Unknown optimizer type: " + type);
     }
+}
+
+std::vector<Tensor> Dense::getParameters() const {
+    return {weights, biases};
+}
+
+void Dense::setParameters(const std::vector<Tensor>& params) {
+    if (params.size() != 2) {
+        throw std::invalid_argument("Dense layer expects 2 parameters: weights and biases");
+    }
+    weights = params[0];
+    biases = params[1];
+    weights_initialized = true;
+}
+
+std::string Dense::getLayerType() const {
+    return "Dense";
 }
 
 }
