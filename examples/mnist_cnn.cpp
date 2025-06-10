@@ -153,10 +153,10 @@ void printMNISTDigit(const Tensor& image, int actual_digit) {
 // Function to download MNIST data if not present
 void downloadMNISTIfNeeded() {
     std::vector<std::string> files = {
-        "train-images-idx3-ubyte",
-        "train-labels-idx1-ubyte", 
-        "t10k-images-idx3-ubyte",
-        "t10k-labels-idx1-ubyte"
+        "examples/data/train-images.idx3-ubyte",
+        "examples/data/train-labels.idx1-ubyte", 
+        "examples/data/t10k-images.idx3-ubyte",
+        "examples/data/t10k-labels.idx1-ubyte"
     };
     
     bool all_exist = true;
@@ -198,13 +198,15 @@ int main() {
         
         // Load MNIST data (limit to 1000 samples for faster training)
         std::cout << "Loading MNIST training data...\n";
-        std::vector<Tensor> train_images = MNISTLoader::loadImages("train-images-idx3-ubyte", 1000);
-        std::vector<int> train_labels_int = MNISTLoader::loadLabels("train-labels-idx1-ubyte", 1000);
+        // Load MNIST data (limit to 1000 samples for faster training)
+        std::cout << "Loading MNIST training data...\n";
+        std::vector<Tensor> train_images = MNISTLoader::loadImages("examples/data/train-images.idx3-ubyte", 1000);
+        std::vector<int> train_labels_int = MNISTLoader::loadLabels("examples/data/train-labels.idx1-ubyte", 1000);
         std::vector<Tensor> train_labels = MNISTLoader::labelsToOneHot(train_labels_int);
         
         std::cout << "Loading MNIST test data...\n";
-        std::vector<Tensor> test_images = MNISTLoader::loadImages("t10k-images-idx3-ubyte", 200);
-        std::vector<int> test_labels_int = MNISTLoader::loadLabels("t10k-labels-idx1-ubyte", 200);
+        std::vector<Tensor> test_images = MNISTLoader::loadImages("examples/data/t10k-images.idx3-ubyte", 200);
+        std::vector<int> test_labels_int = MNISTLoader::loadLabels("examples/data/t10k-labels.idx1-ubyte", 200);
         
         std::cout << "Dataset loaded successfully!\n";
         std::cout << "Training samples: " << train_images.size() << std::endl;
