@@ -14,9 +14,13 @@ file(GLOB_RECURSE SOURCES
 
 # Add pthread support for multithreading
 find_package(Threads REQUIRED)
+find_package(BLAS REQUIRED)
 
 add_library(jnet ${SOURCES})
-target_link_libraries(jnet Threads::Threads)
+target_link_libraries(jnet Threads::Threads ${BLAS_LIBRARIES})
+if(APPLE)
+  target_compile_definitions(jnet PUBLIC ACCELERATE_NEW_LAPACK)
+endif()
 
 add_executable(cnn_example examples/cnn_example.cpp)
 target_link_libraries(cnn_example jnet)

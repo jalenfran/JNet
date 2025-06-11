@@ -52,17 +52,20 @@ public:
         bool show_learning_rate;
         int print_every;  // Print stats every N epochs
         int progress_bar_width;
+        int batch_size;   // Mini-batch size for training
         
         TrainingConfig() : verbose(true), show_progress_bar(true), show_accuracy(false), 
-                          show_learning_rate(false), print_every(1), progress_bar_width(50) {}
+                          show_learning_rate(false), print_every(1), progress_bar_width(50)
+                         , batch_size(1) {}
         TrainingConfig(bool v) : verbose(v), show_progress_bar(true), show_accuracy(false), 
-                                show_learning_rate(false), print_every(1), progress_bar_width(50) {}
+                                show_learning_rate(false), print_every(1), progress_bar_width(50)
+                               , batch_size(1) {}
     };
     
     void trainEpochsAdvanced(const std::vector<Tensor>& inputs, const std::vector<Tensor>& targets, 
                             int epochs, const TrainingConfig& config = TrainingConfig());
     
-    void trainBatch(const std::vector<Tensor>& inputs, const std::vector<Tensor>& targets);
+    void trainBatch(const std::vector<Tensor>& inputs, const std::vector<Tensor>& targets, int batch_size = 1);
     double evaluateAccuracy(const std::vector<Tensor>& inputs, const std::vector<Tensor>& targets);
     
     Tensor predict(const Tensor& input);

@@ -196,12 +196,12 @@ int main() {
         // Check if MNIST files exist
         downloadMNISTIfNeeded();
         
-        // Load MNIST data (limit to 1000 samples for faster training)
+        // Load MNIST data (limit to 3000 samples for faster training)
         std::cout << "Loading MNIST training data...\n";
-        // Load MNIST data (limit to 1000 samples for faster training)
+        // Load MNIST data (limit to 3000 samples for faster training)
         std::cout << "Loading MNIST training data...\n";
-        std::vector<Tensor> train_images = MNISTLoader::loadImages("examples/data/train-images.idx3-ubyte", 1000);
-        std::vector<int> train_labels_int = MNISTLoader::loadLabels("examples/data/train-labels.idx1-ubyte", 1000);
+        std::vector<Tensor> train_images = MNISTLoader::loadImages("examples/data/train-images.idx3-ubyte", 3000);
+        std::vector<int> train_labels_int = MNISTLoader::loadLabels("examples/data/train-labels.idx1-ubyte", 3000);
         std::vector<Tensor> train_labels = MNISTLoader::labelsToOneHot(train_labels_int);
         
         std::cout << "Loading MNIST test data...\n";
@@ -225,26 +225,13 @@ int main() {
         std::cout << "Building CNN architecture for MNIST...\n";
         
         // CNN architecture optimized for 28x28 MNIST images
-        cnn.addLayer(new Conv2D(1, 32, 3, 1, 1, Activation::ReLU));  // 28x28 -> 28x28
-        std::cout << "Added Conv2D layer: 32 filters, 3x3 kernel\n";
-        
-        cnn.addLayer(new MaxPool2D(2, 2));  // 28x28 -> 14x14
-        std::cout << "Added MaxPool2D layer: 2x2 pooling -> 14x14\n";
-        
-        cnn.addLayer(new Conv2D(32, 64, 3, 1, 1, Activation::ReLU));  // 14x14 -> 14x14
-        std::cout << "Added Conv2D layer: 64 filters, 3x3 kernel\n";
-        
-        cnn.addLayer(new MaxPool2D(2, 2));  // 14x14 -> 7x7
-        std::cout << "Added MaxPool2D layer: 2x2 pooling -> 7x7\n";
-        
+        cnn.addLayer(new Conv2D(1, 8, 3, 1, 1, Activation::ReLU));   // 28x28 -> 28x28
+        cnn.addLayer(new MaxPool2D(2, 2));                           // 28x28 -> 14x14
+        cnn.addLayer(new Conv2D(8, 16, 3, 1, 1, Activation::ReLU));  // 14x14 -> 14x14
+        cnn.addLayer(new MaxPool2D(2, 2));                           // 14x14 -> 7x7
         cnn.addLayer(new Flatten());
-        std::cout << "Added Flatten layer\n";
-        
-        cnn.addLayer(new Dense(128, Activation::ReLU));  // 7*7*64 = 3136 -> 128
-        std::cout << "Added Dense layer: 128 neurons\n";
-        
-        cnn.addLayer(new Dense(10, Activation::Linear));  // 10 digit classes
-        std::cout << "Added Dense layer: 10 neurons (digits 0-9)\n";
+        cnn.addLayer(new Dense(64, Activation::ReLU));
+        cnn.addLayer(new Dense(10, Activation::Linear));
         
         // Use SGD optimizer with good learning rate for MNIST
         auto optimizer = std::make_shared<SGD>(0.01);
@@ -279,11 +266,11 @@ int main() {
         config.verbose = true;
         config.show_progress_bar = true;
         config.show_accuracy = true;
-        config.print_every = 2;  // Print every 2 epochs
+        config.print_every = 1;
         config.progress_bar_width = 50;
         
         // Train for moderate number of epochs
-        cnn.trainEpochsAdvanced(train_images, train_labels, 10, config);
+        cnn.trainEpochsAdvanced(train_images, train_labels, 5, config);
         
         // Test on training set (first 20 samples)
         std::cout << "\n=== Training Set Predictions (after training) ===\n";
@@ -313,7 +300,7 @@ int main() {
         // Test on test set
         std::cout << "\n=== Test Set Predictions ===\n";
         int test_correct = 0;
-        int test_samples = std::min(20, static_cast<int>(test_images.size()));
+        int test_samples = static_cast<int>(test_images.size());
         for (int i = 0; i < test_samples; ++i) {
             Tensor prediction = cnn.predict(test_images[i]);
             int predicted_class = 0;
@@ -338,7 +325,7 @@ int main() {
         
         std::cout << "\n=== Final Results ===\n";
         std::cout << "Training Accuracy: " << (train_correct * 100.0 / 20) << "% (" 
-                  << train_correct << "/20 samples correct)\n";
+                  << train_correct << "/" << test_samples << "samples correct)\n";
         std::cout << "Test Accuracy: " << (test_correct * 100.0 / test_samples) << "% (" 
                   << test_correct << "/" << test_samples << " samples correct)\n";
         

@@ -76,6 +76,11 @@ private:
     // Optimizers
     std::shared_ptr<Optimizer> weight_optimizer;
     std::shared_ptr<Optimizer> bias_optimizer;
+
+    // Optimized workspace buffers (to avoid realloc each pass)
+    Tensor col_buffer;
+    Tensor padded_input_buffer;
+    Tensor padded_input_gradients_buffer;
     
     // Helper methods
     Tensor im2col(const Tensor& input) const;

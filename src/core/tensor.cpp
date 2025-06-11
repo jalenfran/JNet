@@ -6,6 +6,11 @@
 #include <random>
 #include <iomanip>
 #include <thread>
+#ifdef __APPLE__
+#include <Accelerate/Accelerate.h>
+#else
+#include <cblas.h>
+#endif
 
 namespace JNet {
 
@@ -153,44 +158,20 @@ Tensor Tensor::dot(const Tensor& other) const {
     if (dimensions[1] != other.dimensions[0]) {
         throw std::invalid_argument("Matrix dimensions don't match for multiplication");
     }
-    
     std::vector<int> result_dims = {dimensions[0], other.dimensions[1]};
     Tensor result(result_dims);
-    
     int rows = dimensions[0];
     int cols = other.dimensions[1];
     int inner = dimensions[1];
-    
-    // Use multithreading for larger matrices
-    size_t total_operations = static_cast<size_t>(rows) * cols;
-    size_t thread_threshold = 100; // Threshold to decide if multithreading is worth it
-    
-    if (total_operations > thread_threshold) {
-        size_t num_threads = std::min(static_cast<size_t>(rows), 
-                                     static_cast<size_t>(std::thread::hardware_concurrency()));
-        
-        parallel_for(0, rows, num_threads, [&](size_t i) {
-            for (int j = 0; j < cols; ++j) {
-                double sum = 0.0;
-                for (int k = 0; k < inner; ++k) {
-                    sum += data[i * inner + k] * other.data[k * cols + j];
-                }
-                result.data[i * cols + j] = sum;
-            }
-        });
-    } else {
-        // Use single-threaded approach for smaller matrices
-        for (int i = 0; i < rows; ++i) {
-            for (int j = 0; j < cols; ++j) {
-                double sum = 0.0;
-                for (int k = 0; k < inner; ++k) {
-                    sum += data[i * inner + k] * other.data[k * cols + j];
-                }
-                result.data[i * cols + j] = sum;
-            }
-        }
-    }
-    
+
+    // Use BLAS for GEMM
+    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                rows, cols, inner,
+                1.0,
+                data.data(), inner,
+                other.data.data(), cols,
+                0.0,
+                result.data.data(), cols);
     return result;
 }
 

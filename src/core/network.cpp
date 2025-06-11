@@ -200,9 +200,14 @@ void Network::trainEpochsAdvanced(const std::vector<Tensor>& inputs, const std::
     }
 }
 
-void Network::trainBatch(const std::vector<Tensor>& inputs, const std::vector<Tensor>& targets) {
-    for (size_t i = 0; i < inputs.size(); ++i) {
-        train(inputs[i], targets[i]);
+void Network::trainBatch(const std::vector<Tensor>& inputs, const std::vector<Tensor>& targets, int batch_size) {
+    size_t total = inputs.size();
+    for (size_t start = 0; start < total; start += batch_size) {
+        size_t end = std::min(start + batch_size, total);
+        // Process each sample in the mini-batch
+        for (size_t i = start; i < end; ++i) {
+            train(inputs[i], targets[i]);
+        }
     }
 }
 
